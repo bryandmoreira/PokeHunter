@@ -1,26 +1,43 @@
 import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
-import { BarcodeScanningResult, CameraType, CameraView, FlashMode, useCameraPermissions } from "expo-camera";
+import {
+  BarcodeScanningResult,
+  CameraType,
+  CameraView,
+  FlashMode,
+  useCameraPermissions,
+} from "expo-camera";
+import * as MediaLibrary from "expo-media-library";
+import * as Location from "expo-location";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as MediaLibrary from "expo-media-library";
+import { saveCapturedPokemon } from "@/services/storage";
 
 export default function CameraScreen() {
-  const [permission, requestPermission] = useCameraPermissions()
+  const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [facing, setFacing] = useState<CameraType>("back");
   const [flash, setFlash] = useState<FlashMode>("off");
   const [takingPicture, setTakingPicture] = useState(false);
   const [scanned, setScanned] = useState(false);
+  const [mode, setMode] = useState<"photo" | "scan">("scan");
 
   function toggleCameraFacing() {
-    setFacing((oldState) => oldState === "back" ? "front" : "back");
+    setFacing((oldState) => (oldState === "back" ? "front" : "back"));
   }
 
   function toggleFlash() {
-    setFlash((oldState) => oldState === "off" ? "on" : "off");
+    setFlash((oldState) => (oldState === "off" ? "on" : "off"));
   }
 
   async function takePicture() {
@@ -32,7 +49,7 @@ export default function CameraScreen() {
     if (mediaLibrary.status !== "granted") {
       Alert.alert(
         "Permissão necessária",
-        "Permita o acesso ao armazenamento para salvar na galeria.",
+        "Permita o acesso às fotos para salvar na galeria.",
       );
       return;
     }
@@ -41,12 +58,12 @@ export default function CameraScreen() {
       .takePictureAsync()
       .then((photo) => {
         MediaLibrary.saveToLibraryAsync(photo.uri).then(() =>
-          Alert.alert("foto salva!")
+          Alert.alert("Foto salva!"),
         );
       })
       .catch((error) => {
         console.error(error);
-        Alert.alert("Erro", "Não foi possivel capturar a foto.");
+        Alert.alert("Erro", "Não foi possível capturar a foto");
       })
       .finally(() => setTakingPicture(false));
   }
@@ -55,29 +72,54 @@ export default function CameraScreen() {
     if (scanned) return;
 
     setScanned(true);
-    Alert.alert("QR Code", result.data);
+   
+    const pokemonId = Number(result.data);
+
+    if(!Number.isInteger(pokemonId) || pokemonId <= 0) {
+      Alert.alert(
+        "QR Code inválido",
+        "O QR Code deve conter o ID de um Pokémon.",
+        [
+          {
+            text: "Tentar novamente",
+            onPress: () => setScanned(false),
+          },
+        ],
+      );
+    }
+
+    const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High});
+    await saveCapturedPokemon(
+      pokemonId, 
+      location.coords.latitude, 
+      location.coords.longitude,
+    );
   }
 
-  
 
   if (!permission) {
     return (
       <View style={styles.permissionContainer}>
-        <ActivityIndicator size="large" color="#ee0a0a" />
+        <ActivityIndicator size="large" color="red" />
       </View>
-    )
+    );
   }
 
   if (!permission.granted) {
     return (
       <SafeAreaView style={styles.permissionContainer}>
-        <FontAwesome name="camera" size={54} color="#ffffff" />
+        <FontAwesome name="camera" size={54} color="white" />
 
         <Text style={styles.permissionTitle}>Acesso à câmera</Text>
+
         <Text style={styles.permissionText}>
           O Pokéhunter precisa de acesso à câmera para capturar Pokémon.
         </Text>
-        <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+
+        <TouchableOpacity
+          style={styles.permissionButton}
+          onPress={requestPermission}
+        >
           <Text style={styles.permissionButtonText}>Permitir acesso</Text>
         </TouchableOpacity>
 
@@ -85,7 +127,7 @@ export default function CameraScreen() {
           <Text style={styles.cancelButtonText}>Voltar</Text>
         </Pressable>
       </SafeAreaView>
-    )
+    );
   }
 
   return (
@@ -100,99 +142,136 @@ export default function CameraScreen() {
         barcodeScannerSettings={{
           barcodeTypes: ["qr"],
         }}
-        onBarcodeScanned={handleBarcodeScanned}
+        onBarcodeScanned={mode === "scan" && !scanned ? handleBarcodeScanned : undefined}
       />
 
       <SafeAreaView style={styles.overlay} edges={["top"]}>
         <View style={styles.topControls}>
           <Pressable style={styles.controlButton} onPress={router.back}>
-            <FontAwesome name="close" size={24} color="#ffffff" />
+            <FontAwesome name="close" size={24} color="white" />
           </Pressable>
 
-          <Pressable style={[
-            styles.controlButton,
-            flash === "on" && styles.activeControlButton,
-          ]}
+          <Pressable
+            style={[
+              styles.controlButton,
+              flash === "on" && styles.activeControlButton,
+            ]}
             onPress={toggleFlash}
           >
-
             <FontAwesome
               name="bolt"
               size={24}
-              color={flash === "on" ? "#ffd60a" : "#ffffff"}
+              color={flash === "on" ? "#ffd60a" : "white"}
             />
-
           </Pressable>
         </View>
 
+        {mode === "scan" && (
+          <View style={styles.scannerArea}>
+            <View style={styles.scannerFrame}>
+              <View style={[styles.scannerCorner, styles.scannerTopLeft]} />
+              <View style={[styles.scannerCorner, styles.scannerTopRight]} />
+              <View style={[styles.scannerCorner, styles.scannerBottomLeft]} />
+              <View style={[styles.scannerCorner, styles.scannerBottomRight]} />
+            </View>
+
+            <Text style={styles.scannerText}>
+              Aponte para o QRCode para capturar o Pokémon
+            </Text>
+          </View>
+        )
+        }
+
         <View style={styles.bottomArea}>
           <View style={styles.modeContainer}>
-            <Text style={styles.activeMode}>FOTO</Text>
+            <Pressable onPress={() => setMode("scan")}>
+              <Text style={
+                mode === "scan" ? styles.activeMode : styles.inactiveMode
+              }
+              >
+                SCAN
+              </Text>
+            </Pressable>
+
+            <Pressable onPress={() => setMode("photo")}>
+              <Text style={
+                mode === "photo" ? styles.activeMode : styles.inactiveMode
+              }
+              >
+                FOTO
+              </Text>
+            </Pressable>
           </View>
 
           <View style={styles.cameraControls}>
             <View style={styles.sideButton} />
 
-            <Pressable style={styles.captureButtonOuter} onPress={takePicture} disabled={takingPicture}>
-              <View style={[
-                styles.captureButtonInner,
-                takingPicture && styles.captureButtonPressed,
-              ]}
+            <Pressable
+              style={styles.captureButtonOuter}
+              onPress={takePicture}
+              disabled={takingPicture || mode === "scan"}
+            >
+              <View
+                style={[
+                  styles.captureButtonInner,
+                  takingPicture && styles.captureButtonPressed,
+                ]}
               >
                 <MaterialIcons
-                  name="catching-pokemon"
+                  name={mode === "photo" ? "catching-pokemon" : "qr-code-2"}
                   size={takingPicture ? 56 : 64}
-                  color="#000000"
+                  color="black"
                 />
               </View>
             </Pressable>
 
             <Pressable style={styles.sideButton} onPress={toggleCameraFacing}>
               <View style={styles.flipButton}>
-                <FontAwesome name="refresh" size={24} color="#ffffff" />
+                <FontAwesome name="refresh" size={24} color="white" />
               </View>
             </Pressable>
           </View>
+
           <SafeAreaView edges={["bottom"]} />
         </View>
-      </SafeAreaView>
-    </View>
+      </SafeAreaView >
+    </View >
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     height: "100%",
-    backgroundColor: "#1e1e1e",
+    backgroundColor: "black",
   },
   camera: {
     height: "100%",
   },
   permissionContainer: {
     height: "100%",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 32,
     backgroundColor: "#121212",
   },
   permissionTitle: {
-    marginTop: 16,
+    marginTop: 24,
     color: "white",
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "bold",
   },
   permissionText: {
-    marginTop: 8,
+    marginTop: 12,
     color: "#a3a3a3",
     fontSize: 16,
     textAlign: "center",
   },
   permissionButton: {
-    marginTop: 16,
+    marginTop: 24,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#ee0a0a",
+    backgroundColor: "red",
   },
   permissionButtonText: {
     color: "white",
@@ -200,12 +279,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   cancelButton: {
-    marginTop: 16,
+    marginTop: 18,
     padding: 10,
   },
   cancelButtonText: {
-    color: "#ee0a0a",
-    fontSize: 16,
+    color: "#a3a3a3",
+    fontSize: 14,
   },
   overlay: {
     position: "absolute",
@@ -216,69 +295,130 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
   },
   controlButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
   },
   activeControlButton: {
-    backgroundColor: "#rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
   bottomArea: {
     paddingTop: 18,
     paddingHorizontal: 24,
     paddingBottom: 12,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    backgroundColor: "rgba(0,0,0,0.72)",
   },
   modeContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginBottom: 12,
     gap: 28,
+    marginBottom: 24,
   },
   activeMode: {
-    color: "#e9e8e5",
+    color: "#ffd60a",
+    fontSize: 13,
+    fontWeight: "semibold",
+  },
+  inactiveMode: {
+    color: "#a3a3a3",
     fontSize: 13,
     fontWeight: "semibold",
   },
   cameraControls: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
   },
   captureButtonOuter: {
-
+    width: 78,
+    height: 78,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 39,
+    borderWidth: 4,
+    borderColor: "white",
   },
   captureButtonInner: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#fcfcfc",
+    backgroundColor: "white",
   },
-
   captureButtonPressed: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    opacity: 0.8,
+    opacity: 0.7,
   },
   sideButton: {
     width: 52,
     height: 52,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
   flipButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
+    borderRadius: 22,
+    backgroundColor: "rgba(35,35,35,0.9)",
   },
+  scannerArea: {
+    alignItems: "center",
+  },
+  scannerFrame: {
+    width: 240,
+    height: 240,
+    position: "relative",
+  },
+  scannerCorner: {
+    position: "absolute",
+    width: 45,
+    height: 45,
+    borderColor: "white",
+  },
+  scannerTopLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 12,
+  },
+  scannerTopRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 12,
+  },
+  scannerBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 12,
+  },
+  scannerBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 12,
+  },
+  scannerText: {
+    marginTop: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 18,
+    color: "white",
+    fontSize: 14,
+    backgroundColor: "rgba(0,0,0,0.55)"
+  }
 });
