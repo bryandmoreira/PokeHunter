@@ -1,9 +1,12 @@
 import CameraButton from '@/components/CameraButton';
 import PokemonItem from '@/components/PokemonItem';
 import { getPokemonList, Pokemon } from '@/services/pokeapi';
+import { clearCapturedPokemon, getCapturedPokemon } from '@/services/storage';
+import { FontAwesome } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { StyleSheet, Text, View, FlatList, ActivityIndicator } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 
@@ -13,27 +16,41 @@ export default function PokedexScreen() {
   const [loading, setLoading] = useState(false);
   const [hasNextPage, setHasNextPage] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [capturedids, setCapturedIds] = useState<number[]>([]);
 
   const LIMIT = 20;
 
   async function loadPokemonList() {
-    if(loading || !hasNextPage) {
+    if (loading || !hasNextPage) {
       return;
     }
 
     setLoading(true);
 
     getPokemonList(LIMIT, offset)
-    .then((response) => {
-      setPokemonList((oldState) => [...oldState, ...response.pokemonList]);
-      setHasNextPage(response.hasNextPage);
-      setOffset((oldState) => oldState + response.pokemonList.length);
-    })
+      .then((response) => {
+        setPokemonList((oldState) => [...oldState, ...response.pokemonList]);
+        setHasNextPage(response.hasNextPage);
+        setOffset((oldState) => oldState + response.pokemonList.length);
+      })
       .catch((error) => console.error(error))
       .finally(() => setLoading(false));
-  }
+    }
+      
+      function handleClear() {
+        clearCapturedPokemon();
+        setCapturedIds([]);
+      }
 
- 
+  useFocusEffect(
+    useCallback(() => {
+      getCapturedPokemon().then((response) =>
+        setCapturedIds(response.map((pokemon) => pokemon.id)),
+      );
+    }, [])
+
+  )
+
 
   return (
     <SafeAreaView style={styles.container} edges=
@@ -43,6 +60,11 @@ export default function PokedexScreen() {
       <View style={styles.main}>
         <View style={styles.header}>
           <Text style={styles.title}>Pokedex</Text>
+
+          <Pressable onPress={clearCapturedPokemon}>
+            <FontAwesome name="trash" size={20}
+              color="red" />
+          </Pressable>
         </View>
 
         <FlatList
@@ -54,7 +76,7 @@ export default function PokedexScreen() {
               id={item.id}
               name={item.name}
               image={item.image}
-              captured={false}
+              captured={capturedids.includes(item.id)}
             />
           )}
           contentContainerStyle={styles.list}
@@ -90,6 +112,9 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
     borderBottomWidth: 1,
     borderBottomColor: "#2f2f2f",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
 
   },
   title: {

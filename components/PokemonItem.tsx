@@ -1,5 +1,6 @@
 import { Image } from "expo-image";
-import { View, StyleSheet, Text } from "react-native";
+import { router } from "expo-router";
+import { View, StyleSheet, Text, Pressable } from "react-native";
 
 
 interface Props {
@@ -16,25 +17,33 @@ export default function PokemonItem({
     captured = false,
 }: Props) {
     return (
-        <View style={styles.container}>
+        <Pressable
+            style={({ pressed }) => [
+                styles.container,
+                pressed && captured && styles.pressed
+            ]}
+            disabled={!captured}
+            onPress={() => router.push(`/pokemon/${id}`)}
+        >
             <Text style={styles.number}>#{String(id).padStart(4, "0")}</Text>
-            <View>
+
+            <View style={styles.imageContainer}>
                 <Image
-                  source={{ uri: image }}
-                  contentFit="contain"
-                  transition={200}
-                  style={[styles.image, !captured && styles.hiddenImage]}
+                    source={{ uri: image }}
+                    contentFit="contain"
+                    transition={200}
+                    style={[styles.image, !captured && styles.hiddenImage]}
                 />
 
-                {!captured &&(
+                {!captured && (
                     <View>
                         <Text style={styles.question}>?</Text>
                     </View>
                 )}
             </View>
 
-            <Text style={styles.name}>{captured ? name : "???" }</Text>
-        </View>
+            <Text style={styles.name}>{captured ? name : "???"}</Text>
+        </Pressable>
     )
 }
 
@@ -93,5 +102,9 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         textAlign: "center",
         textTransform: "capitalize",
-    }
-})
+    },
+    pressed: {
+        opacity: 0.8,
+        transform: [{scale: 0.98 }],
+    },
+});
