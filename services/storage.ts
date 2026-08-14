@@ -9,7 +9,7 @@ export interface capturedPokemon {
     capturedAt: string;
 }
 
-export async function getCapturedPokemon {
+export async function getCapturedPokemon() {
     const storedPokemon = await AsyncStorage.getItem(STORAGE_KEY);
 
     if (!storedPokemon) {

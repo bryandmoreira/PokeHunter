@@ -1,3 +1,4 @@
+import { saveCapturedPokemon } from "@/services/storage";
 import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import {
   BarcodeScanningResult,
@@ -6,11 +7,11 @@ import {
   FlashMode,
   useCameraPermissions,
 } from "expo-camera";
-import * as MediaLibrary from "expo-media-library";
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import * as MediaLibrary from "expo-media-library";
+import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,10 +22,10 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { saveCapturedPokemon } from "@/services/storage";
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
+  const [isFocused, setIsFocused] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const [facing, setFacing] = useState<CameraType>("back");
   const [flash, setFlash] = useState<FlashMode>("off");
@@ -32,6 +33,13 @@ export default function CameraScreen() {
   const [mode, setMode] = useState<"photo" | "scan">("scan");
   const scanned = useRef(false);
 
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+
+      return () => setIsFocused(false);
+    }, []),
+  );
   function toggleCameraFacing() {
     setFacing((oldState) => (oldState === "back" ? "front" : "back"));
   }
@@ -144,7 +152,11 @@ export default function CameraScreen() {
         barcodeScannerSettings={{
           barcodeTypes: ["qr"],
         }}
-        onBarcodeScanned={mode === "scan" && !scanned ? handleBarcodeScanned : undefined}
+        onBarcodeScanned={
+          mode === "scan" && !scanned.current && isFocused 
+          ? handleBarcodeScanned 
+          : undefined
+        }
       />
 
       <SafeAreaView style={styles.overlay} edges={["top"]}>
